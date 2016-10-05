@@ -1,0 +1,314 @@
+
+---
+title: "Sensitivity analyses for shocks papers"
+author: "A.A. Reda"
+date: "Wednesday, February 24, 2016"
+output: html_document
+---
+
+
+```{r}
+# Time needed to run the code is 4:32hrs on a 64bit, 4gb Ram, and 3.16gh processor 
+rm(list=ls())
+set.seed(8576)
+
+print(paste("Analysis conducted by A.A. Reda"), quote=FALSE)
+
+## Analysis was done on: 
+format(Sys.time(), "%a %b %d %X %Y")
+
+## Analysis was run on 
+format(Sys.time(), "%a %b %d %X %Y")
+Sys.Date()
+
+# Disabling scientific notation in R
+options(scipen = 999)
+
+# input Stata file
+# mc <- setwd("//Users//Alex//Google Drive//Causal and missing data analysis")
+# mc
+ dt <- setwd("C://Users//areda//Google Drive//DS") # Windows directory.
+# dt <- setwd("//Users//Alex//Google Drive//DS") # Mac directory.
+dt
+
+# Importing Stata data
+library(foreign)
+ mydat <- read.dta("C://Users//areda//Google Drive//DS//allrf2old.dta") # Windows
+# mydat <- read.dta("//Users//Alex//Google Drive//DS//allrf2old.dta") # Mac
+
+# Missing count
+table(mydat$missing)
+
+# Selecting complete cases
+mydatc <- mydat[which(mydat$missing==1),]
+
+# Number of missing
+table(mydatc$missing)
+
+# Step 1: Fit a regression model to observed data
+# 
+# Installing lme4 and ggplot2
+# 
+# local({r <- getOption("repos")
+# r["CRAN"] <- "http://cran.stat.sfu.ca/"
+# options(repos=r)})
+# install.packages("Matrix")
+# install.packages("nlme")
+# install.packages("minqa")
+# install.packages("RcppEigen")
+# install.packages("lme4",repos="http://lme4.r-forge.r-project.org/repos")
+# install.packages("ggplot2", dependencies=TRUE)
+
+# install.packages("lmerTest")
+library(lmerTest)
+# install.packages("lmer")
+library(lme4)
+
+# Weighted model, IPW step
+
+# Working on levels issue on schooling in the third wave
+
+mydat$enrschr3 <- droplevels(mydat$enrschr3)
+
+# Step 1: Identifying predictors of missingness
+model.ipw.1 <- glmer(missing ~ 1+ enrschr3 + morb1a + morb2 + morb1a + badevent1 + badevent2 + stunted1 + wasted1 + chores1 + childwork1 + order1 + ageyr1 + sex1 + typesite1 + educpar1 + wi14 + wi24 + clustsch1 + cntry1 + (1 | nclustid), data = mydat, family = binomial)
+round(summary(model.ipw.1)$coefficients, 3)
+cbind(round(exp(summary(model.ipw.1)$coefficients[,1]),3))
+
+# Here I show a tabulation of the patterns of missing by important predictors 
+# It looks like being rural, stying in school, and coming from parents with education above primary school are important predictors of missingness. Those in the upper middle and highest wealth quartile in the second wave were also more likely to be missing.
+table(mydat$educpar1, mydat$missing)
+table(mydat$typesite1, mydat$missing)
+table(mydat$enrschr3, mydat$missing)
+
+# Generating weights
+mydat$pi.hat = fitted(model.ipw.1)
+mydat$ipw <- 1 / mydat$pi.hat
+summary(mydat$pi.hat)
+
+# Plot of weights
+plot(mydat$ipw)
+plot(mydat$pi.hat)
+
+# Multiple imputation model
+
+# Step 1:  fit regression model to observed data
+cc.modelp = lmer(rmath2 ~ 1+ enrschr3 + morb1a + morb2 + badevent1 + badevent2 + zhfa_1 + zwfa_1 + zhfa_2 + chores1 + childwork1 + order1 + sex1 + typesite1 + educpar1 + wi1 + clustsch1 + cntry1 + + (1 | nclustid), data = mydat, subset = (missing==0), REML = F)
+round(summary(cc.modelp)$coefficients, 3)
+
+# Complete cases model - I only retained the variables that were significant
+cc.model = lmer(rmath2 ~ 1+ enrschr3 + morb1a + zhfa_1 + order1 + typesite1 + educpar1 + wi1 + cntry1 + (1 | nclustid), data = mydat, subset = (missing==0), REML = F)
+round(summary(cc.model)$coefficients, 3)
+
+# Print results without correlations 
+print(cc.model, corr = F)
+round(summary(cc.model)$coefficients, 3)
+
+# Model diagnostics
+par(mfrow = c(1,1))
+plot(cc.model)
+qqnorm(resid(cc.model))
+
+# Multiple imputation routine
+# Draw 2000 imputations
+# matrix holding results from each bootstrap sample
+B     			= 10 # Number of bootstrap samples
+beta.imp			= matrix(NA, nrow=B, ncol=19) 
+
+for (j in 1:B){
+#cc model, and resapmling procedure
+  mydatx = mydat[sample(nrow(mydat),3420, replace=T),]
+  m1 = lmer(rmath2 ~ 1+ enrschr3 + morb1a + zhfa_1 + order1 + typesite1 + educpar1 + wi1 + cntry1 + + (1 | nclustid), data = mydatx, subset = (missing==0), REML = FALSE)
+ 
+# Generating prediction data, and imputation for each person
+  mydatx$rmath2.hat = NA
+  mydatx$rmath2.hat = predict(m1, newdata = mydatx, allow.new.levels=T)
+  mydatx$rmath2.hat[mydatx$missing==0] = mydatx$rmath2[mydatx$missing==0]
+
+# New regression model based on imputed data
+#mydatx$scaled.hat <- mydatx$rmath2.hat - mean(mydatx$rmath2.hat)
+ 
+  imp.model = glm(enrschr3 ~ rmath2 + morb1a + stunted1 + wasted1 + chores1 + childwork1 + order1 + ageyr1 + sex1 + typesite1 + educpar1 + wi14 + ntotal1 + morb2 + stunted2 + nclustid, data = mydatx, family = binomial)
+
+  # summary(imp.model)
+  
+# Results of interest are beta coefficients
+  beta.imp[j,] = cbind(summary(imp.model)$coefficients[1:19,1])
+  
+}
+
+colnames(beta.imp) = c("Intercept", "rmath2", "morb1a","stunted1","wasted1", "chores", "childwork", "order", "age", "Sex1", "typesite1", "educpar.Primary", "educpar.abovePrimary", "Lower.wi1", "Upper.wi1", "Highest.wi1", "hhsize", "morb2", "stunted2")
+
+# Ranking of values for confidence interval calculation
+
+# Mean of bootstrap beta
+mean.imp.beta <- cbind(apply(beta.imp, 2, mean))
+mean.imp.beta
+
+# Median of bootstrap beta
+median.imp.beta <- cbind(apply(beta.imp, 2, median))
+median.imp.beta
+
+# Standard error of bootstrap beta
+
+se.imp.beta <- cbind(apply(beta.imp,2, sd))
+se.imp.beta
+
+cbind(mean.imp.beta, se.imp.beta)
+
+# Here I calculate p-values for the betas
+# I just take on imputed model (or one cal also take the last model from the simulation above)
+
+# Imputed model for p-value calculation
+
+#cc model, and resapmling procedure
+  mydatx = mydat[sample(nrow(mydat),3420, replace=T),]
+  m1 = lmer(rmath2 ~ 1+ enrschr3 + morb1a + zhfa_1 + order1 + typesite1 + educpar1 + wi1 + cntry1 + + (1 | nclustid), data = mydatx, subset = (missing==0), REML = FALSE)
+ 
+# Generating prediction data, and imputation for each person
+  mydatx$rmath2.hat = NA
+  mydatx$rmath2.hat = predict(m1, newdata = mydatx, allow.new.levels=T)
+  mydatx$rmath2.hat[mydatx$missing==0] = mydatx$rmath2[mydatx$missing==0]
+
+# New regression model based on imputed data
+imp.model = glm(enrschr3 ~ rmath2.hat + morb1a + stunted1 + wasted1 + chores1 + childwork1 + order1 + ageyr1 + sex1 + typesite1 + educpar1 + wi14 + ntotal1 + morb2 + stunted2 + nclustid, data = mydatx, family = binomial)
+
+# Coefficients of imputed model
+round(summary(imp.model)$coef, 4)
+imp.model.b <- c(summary(imp.model)$coef[1:19,1])
+imp.model.b
+
+# Empty vector
+p.val = rep(NA,19)
+N=19
+
+for(j in 1:19) {
+  p.val[j] <- mean(abs(beta.imp[,j] - mean(beta.imp[,j])) > abs(imp.model.b[j]))
+}
+
+# Now I bind the bootstrap means with that of their p-values
+cbind(mean.imp.beta, se.imp.beta, p.val)
+
+# ////////////////////////////////////////////////////////////
+
+# (1) Sensitivity analysis 
+
+# Multiple imputation routine
+
+# Draw 3420 imputations of rmath2 by modifying the predicted values by the s.d. of the error from the cc.model
+
+# delta, my sensitivity parameter is based on 3,2,1,-1,-2,-3 muliples of the s.d.
+delta <- seq(-3,3, 1)
+
+# matrix holding results from each bootstrap sample
+B = 2000 # Number of bootstrap samples
+
+# Generating empty matrix to store beta estimates
+beta.arr <- array(c(matrix(NA, nrow = B, ncol = 19)), c(B, 19, length(delta)) )
+pred.arr <- array(matrix(NA, nrow=B, ncol = 1), c(B, 1, length(delta)))
+  
+set.seed(8576)
+for (j in 1:B){                  
+  for ( i in 1:length(delta)) {
+    
+    #cc model
+    mydatx = mydat[sample(nrow(mydat),3420, replace=T),]
+    m1 = lmer(rmath2 ~ 1+ enrschr3 + morb1a + zhfa_1 + order1 + typesite1 + educpar1 + wi1 + cntry1 + (1 | nclustid), data = mydatx, subset = (missing==0), REML = FALSE)   
+
+    # Extracting the standard deviation of the error from the above model.
+    #sigma.e <- attr(VarCorr(m1), "sc")
+    sigma.e <- sd(mydat$rmath2, na.rm = TRUE)
+    
+    # Correcting predicted values by a sensitivity value sigma
+    mydatx$rmath2.hat = predict(m1, newdata = mydatx, allow.new.levels=T) + (delta[i]) * sigma.e
+    
+    # Here, I am replacing predicted values of observed cases with their observed values
+    mydatx$rmath2.hat[mydatx$missing==0] <- mydatx$rmath2[mydatx$missing==0] 
+    
+    # Saving predicted values for missing cases. This is done to show the imputed mean estimates for each delta.
+      pred.arr[j, ,i ] <- mean(mydatx$rmath2.hat[mydatx$missing==1])
+
+    # New regression model
+imp.model = glm(enrschr3 ~ rmath2.hat + morb1a + stunted1 + wasted1 + chores1 + childwork1 + order1 + ageyr1 + sex1 + typesite1 + educpar1 + wi14 + ntotal1 + morb2 + stunted2 + nclustid, data = mydatx, family = binomial)
+
+    # Results of interest are beta coefficients
+    beta.arr[j, ,i ] = c(summary(imp.model)$coefficients[1:19,1])
+  }
+}
+
+# Here I save the summary of sensitivity estimates in a matrix
+est.mat <- matrix(NA, nrow = length(delta), ncol=19)
+est.mat.med <- matrix(NA, nrow = length(delta), ncol=19)
+est.mat.se <- matrix(NA, nrow = length(delta), ncol=19)
+colnames(est.mat) <- c("Intercept", "rmath2", "morb1a","stunted1","wasted1", "chores", "childwork", "order", "age", "Sex1", "typesite1", "educpar.Primary", "educpar.abovePrimary", "Lower.wi1", "Upper.wi1", "Highest.wi1", "hhsize", "morb2", "stunted2")
+colnames(est.mat.se) <- c("Intercept", "rmath2", "morb1a","stunted1","wasted1", "chores", "childwork", "order", "age", "Sex1", "typesite1", "educpar.Primary", "educpar.abovePrimary", "Lower.wi1", "Upper.wi1", "Highest.wi1", "hhsize", "morb2", "stunted2")
+
+# Matrix for predicted values under deltas -3 to +3
+pred.mat <- matrix(NA, nrow = length(delta), ncol = 1)
+pred.se <- matrix(NA, nrow = length(delta), ncol = 1)
+
+# Calculating means, medians, and standard errors
+for(i in 1:length(delta)) {
+  est.mat[i,] <- apply(beta.arr[ , , i], 2, mean, na.rm=TRUE)
+  est.mat.med[i,] <- apply(beta.arr[ , , i], 2, median, na.rm=TRUE)
+  est.mat.se[i,] <- apply(beta.arr[ , , i], 2, sd, na.rm=TRUE)
+  pred.mat[i,] <- mean(pred.arr[ , ,i],  na.rm=TRUE)
+  pred.se[i,] <- sd(pred.arr[ , ,i], na.rm = TRUE)  
+  }
+
+# Medians
+est.mat.med[,3]
+exp(est.mat.med[,3])
+
+# Calculating p-values from the mean and the standard error of the mean
+round(cbind(exp(est.mat[,3]), exp(est.mat.se[,3]), 2*pnorm(-abs(est.mat[,3]/est.mat.se[,3]))),3)
+
+# Truncating the mean matrix to generate plots - I am plotting only the health shock coefficient.
+est.mat2 <- est.mat[,3]
+est.mat2
+
+# Plotting sensitivity estimates
+# install.packages("plotrix")
+#par(mfrow=c(3,3), mar = c(4,3,3,1))
+  barplot(exp(est.mat2),
+  xlab = colnames(est.mat2),
+  names.arg= as.character(-3:3), axis.lty=1,ylim=c(1,1.5) , mgp=c(3,1,0.2), xpd = FALSE)
+
+# Check this to add labels: 
+# http://stats.stackexchange.com/questions/3879/how-to-put-values-over-bars-in-barplot-in-r
+  
+# Now adding labels at the top of the bars for more clarity that achieved above.
+grp <- barplot(exp(est.mat2),
+  xlab = colnames(est.mat2),
+  names.arg= as.character(-3:3), axis.lty=1,ylim=c(1,1.5) , mgp=c(3,1,0.2), xpd = FALSE)
+  ## Add text at top of bars
+text(x = grp, y = exp(est.mat2), label = formatC(exp(est.mat2), format = 'f', digits=2), pos = 3, cex = 0.8, col = "black") 
+
+
+#   ## Add text at top of bars
+# text(x = grp, y = exp(est.mat2), label = round(exp(est.mat2),2), pos = 3, cex = 0.8, col = "black")  
+
+ 
+  
+# Mean and SE of the imputed math scores under different sensitivity parameters
+colnames(pred.mat) <- c("mean")
+colnames(pred.se) <- c("SE")
+cbind(pred.mat, pred.se)
+
+#*********************************
+# Creating a matrix to show the sensivity values
+
+# Mean
+sens.mat<- cbind(delta, est.mat)
+write.csv(sens.mat, "sensitivity_mean.csv")
+
+# Standard error
+sens.mat.se <- cbind(delta, est.mat.se)
+write.csv(sens.mat.se, "sensitivity_se.csv")
+
+format(Sys.time(), "%a %b %d %X %Y")
+Sys.Date()
+
+# **********************************
+########################################################
+```
