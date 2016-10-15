@@ -29,8 +29,8 @@ options(scipen = 999)
 # mc
 # dt <- setwd("C://Users//areda//Google Drive//DS") # Windows directory.
 # dt <- setwd("//Users//Alex//Google Drive//DS") # Mac directory.
-dt
 setwd(ifelse(.Platform$OS.type=="unix", "//Users//Alex//Google Drive//DS", "C://Users//areda//Google Drive//DS"))
+dt
 
 # Importing Stata data
 library(foreign)
