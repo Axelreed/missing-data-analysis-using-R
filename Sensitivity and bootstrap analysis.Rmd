@@ -24,12 +24,13 @@ Sys.Date()
 # Disabling scientific notation in R
 options(scipen = 999)
 
-# input Stata file
+# input Stata file - comment and uncomment based on applicable directories.
 # mc <- setwd("//Users//Alex//Google Drive//Causal and missing data analysis")
 # mc
- dt <- setwd("C://Users//areda//Google Drive//DS") # Windows directory.
+# dt <- setwd("C://Users//areda//Google Drive//DS") # Windows directory.
 # dt <- setwd("//Users//Alex//Google Drive//DS") # Mac directory.
 dt
+setwd(ifelse(.Platform$OS.type=="unix", "//Users//Alex//Google Drive//DS", "C://Users//areda//Google Drive//DS"))
 
 # Importing Stata data
 library(foreign)
