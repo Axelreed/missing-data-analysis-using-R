@@ -164,7 +164,7 @@ cbind(mean.imp.beta, se.imp.beta)
 
 #cc model, and resapmling procedure
   mydatx = mydat[sample(nrow(mydat),3420, replace=T),]
-  m1 = lmer(rmath2 ~ 1+ enrschr3 + morb1a + zhfa_1 + order1 + typesite1 + educpar1 + wi1 + cntry1 + + (1 | nclustid), data = mydatx, subset = (missing==0), REML = FALSE)
+  m1 = lmer(rmath2 ~ 1+ enrschr3 + morb1a + zhfa_1 + order1 + typesite1 + educpar1 + wi1 + cntry1 + (1 | nclustid), data = mydatx, subset = (missing==0), REML = FALSE)
  
 # Generating prediction data, and imputation for each person
   mydatx$rmath2.hat = NA
