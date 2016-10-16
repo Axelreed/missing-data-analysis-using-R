@@ -8,7 +8,7 @@ output: html_document
 
 
 ```{r}
-# Time needed to run the code is 4:32hrs on a 64bit, 4gb Ram, and 3.16gh processor 
+# To save time the experimental code is based on 10 boot strap samples. Ideal is 2000 to 3000 draws. 
 rm(list=ls())
 set.seed(8576)
 
@@ -94,7 +94,7 @@ plot(mydat$pi.hat)
 # Multiple imputation model
 
 # Step 1:  fit regression model to observed data
-cc.modelp = lmer(rmath2 ~ 1+ enrschr3 + morb1a + morb2 + badevent1 + badevent2 + zhfa_1 + zwfa_1 + zhfa_2 + chores1 + childwork1 + order1 + sex1 + typesite1 + educpar1 + wi1 + clustsch1 + cntry1 + + (1 | nclustid), data = mydat, subset = (missing==0), REML = F)
+cc.modelp = lmer(rmath2 ~ 1+ enrschr3 + morb1a + morb2 + badevent1 + badevent2 + zhfa_1 + zwfa_1 + zhfa_2 + chores1 + childwork1 + order1 + sex1 + typesite1 + educpar1 + wi1 + clustsch1 + cntry1 + (1 | nclustid), data = mydat, subset = (missing==0), REML = F)
 round(summary(cc.modelp)$coefficients, 3)
 
 # Complete cases model - I only retained the variables that were significant
@@ -119,7 +119,7 @@ beta.imp			= matrix(NA, nrow=B, ncol=19)
 for (j in 1:B){
 #cc model, and resapmling procedure
   mydatx = mydat[sample(nrow(mydat),3420, replace=T),]
-  m1 = lmer(rmath2 ~ 1+ enrschr3 + morb1a + zhfa_1 + order1 + typesite1 + educpar1 + wi1 + cntry1 + + (1 | nclustid), data = mydatx, subset = (missing==0), REML = FALSE)
+  m1 = lmer(rmath2 ~ 1+ enrschr3 + morb1a + zhfa_1 + order1 + typesite1 + educpar1 + wi1 + cntry1 + (1 | nclustid), data = mydatx, subset = (missing==0), REML = FALSE)
  
 # Generating prediction data, and imputation for each person
   mydatx$rmath2.hat = NA
