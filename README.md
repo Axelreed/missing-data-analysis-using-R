@@ -1,5 +1,5 @@
 # missing-data-analysis
-Examination of model sensitivity to different senarios of missingness using bagging (bootstrap) of multilevel models.
+Examination of model sensitivity to different senarios of missingness via use of bagging.
 
 # Draft
 
